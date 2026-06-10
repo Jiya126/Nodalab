@@ -1,0 +1,55 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class NeuralNetwork(nn.Module):
+    def __init__(self):
+        super().__init__()
+{% for layer in layers %}
+{% if layer.type == 'Linear' %}
+        self.{{ layer.label }} = nn.Linear({{ layer.params.get('in_features', 512) }}, {{ layer.params.get('out_features', 256) }}, bias={{ layer.params.get('bias', True) }})
+{% elif layer.type == 'Conv2d' %}
+        self.{{ layer.label }} = nn.Conv2d({{ layer.params.get('in_channels', 3) }}, {{ layer.params.get('out_channels', 64) }}, kernel_size={{ layer.params.get('kernel_size', 3) }}, stride={{ layer.params.get('stride', 1) }}, padding={{ layer.params.get('padding', 1) }})
+{% elif layer.type == 'Embedding' %}
+        self.{{ layer.label }} = nn.Embedding({{ layer.params.get('num_embeddings', 10000) }}, {{ layer.params.get('embedding_dim', 512) }})
+{% elif layer.type == 'MultiHeadAttention' %}
+        self.{{ layer.label }} = nn.MultiheadAttention({{ layer.params.get('embed_dim', 512) }}, {{ layer.params.get('num_heads', 8) }}, dropout={{ layer.params.get('dropout', 0.0) }})
+{% elif layer.type == 'LayerNorm' %}
+        self.{{ layer.label }} = nn.LayerNorm({{ layer.params.get('normalized_shape', 512) }})
+{% elif layer.type == 'BatchNorm2d' %}
+        self.{{ layer.label }} = nn.BatchNorm2d({{ layer.params.get('num_features', 64) }})
+{% elif layer.type == 'LSTM' %}
+        self.{{ layer.label }} = nn.LSTM({{ layer.params.get('input_size', 512) }}, {{ layer.params.get('hidden_size', 256) }}, num_layers={{ layer.params.get('num_layers', 1) }}, bidirectional={{ layer.params.get('bidirectional', False) }}, batch_first=True)
+{% elif layer.type == 'Dropout' %}
+        self.{{ layer.label }} = nn.Dropout(p={{ layer.params.get('p', 0.5) }})
+{% elif layer.type == 'Flatten' %}
+        self.{{ layer.label }} = nn.Flatten(start_dim={{ layer.params.get('start_dim', 1) }}, end_dim={{ layer.params.get('end_dim', -1) }})
+{% endif %}
+{% endfor %}
+
+    def forward(self, {{ inputs | join(', ') }}):
+{% for fwd in forwards %}
+{% if fwd.type in ('ReLU',) %}
+        {{ fwd.output_var }} = F.relu({{ fwd.input_var }})
+{% elif fwd.type == 'GELU' %}
+        {{ fwd.output_var }} = F.gelu({{ fwd.input_var }})
+{% elif fwd.type == 'Sigmoid' %}
+        {{ fwd.output_var }} = torch.sigmoid({{ fwd.input_var }})
+{% elif fwd.type == 'Softmax' %}
+        {{ fwd.output_var }} = F.softmax({{ fwd.input_var }}, dim={{ fwd.params.get('dim', -1) }})
+{% elif fwd.type == 'Add' %}
+        {{ fwd.output_var }} = {{ fwd.input_var }}
+{% elif fwd.type == 'Concat' %}
+        {{ fwd.output_var }} = {{ fwd.input_var }}
+{% elif fwd.type == 'Reshape' %}
+        {{ fwd.output_var }} = {{ fwd.input_var }}.view({{ fwd.params.get('shape', '-1') }})
+{% elif fwd.type == 'LSTM' %}
+        {{ fwd.output_var }}, _ = self.{{ fwd.label }}({{ fwd.input_var }})
+{% elif fwd.type == 'MultiHeadAttention' %}
+        {{ fwd.output_var }}, _ = self.{{ fwd.label }}({{ fwd.input_var }}, {{ fwd.input_var }}, {{ fwd.input_var }})
+{% else %}
+        {{ fwd.output_var }} = self.{{ fwd.label }}({{ fwd.input_var }})
+{% endif %}
+{% endfor %}
+        return {{ return_vars | join(', ') }}
