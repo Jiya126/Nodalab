@@ -9,6 +9,7 @@ import {
 } from '@xyflow/react';
 import { useGraphStore, type BlockNode as BlockNodeType } from '../store/graphStore';
 import { useUIStore } from '../store/uiStore';
+import { useCustomBlockStore } from '../store/customBlockStore';
 import BlockNode from './BlockNode';
 
 const nodeTypes = {
@@ -22,6 +23,7 @@ export default function Canvas() {
   const onEdgesChange = useGraphStore(s => s.onEdgesChange);
   const onConnect = useGraphStore(s => s.onConnect);
   const addNode = useGraphStore(s => s.addNode);
+  const addCustomBlockPreset = useGraphStore(s => s.addCustomBlockPreset);
 
   const setSelectedNodeId = useUIStore(s => s.setSelectedNodeId);
 
@@ -40,16 +42,22 @@ export default function Canvas() {
     (e: DragEvent) => {
       e.preventDefault();
       const blockType = e.dataTransfer.getData('application/nodalab-block');
-      if (!blockType || !reactFlowInstance.current) return;
+      const presetId = e.dataTransfer.getData('application/nodalab-custom-block');
+      if ((!blockType && !presetId) || !reactFlowInstance.current) return;
 
       const position = reactFlowInstance.current.screenToFlowPosition({
         x: e.clientX,
         y: e.clientY,
       });
 
-      addNode(blockType, position);
+      if (presetId) {
+        const preset = useCustomBlockStore.getState().savedBlocks.find(block => block.id === presetId);
+        if (preset) addCustomBlockPreset(preset, position);
+      } else {
+        addNode(blockType, position);
+      }
     },
-    [addNode]
+    [addNode, addCustomBlockPreset]
   );
 
   const onNodeClick = useCallback(

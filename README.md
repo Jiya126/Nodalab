@@ -6,11 +6,12 @@ A browser-based block programming environment for designing neural network archi
 
 - **Visual Graph Editor** — Drag-and-drop neural network blocks on a canvas powered by React Flow
 - **18 Built-in Blocks** — Linear, Conv2d, LSTM, MultiHeadAttention, Embedding, LayerNorm, BatchNorm2d, ReLU, GELU, Softmax, Sigmoid, Dropout, Add, Concat, Reshape, Flatten, Input, Output
-- **Custom Blocks** — Write your own `forward()` logic with the embedded Monaco code editor
+- **Custom Blocks** — Write your own `forward()` logic with the embedded Monaco code editor and save reusable custom blocks to the sidebar
 - **Live Shape Propagation** — See tensor dimensions flowing through the graph in real-time
 - **PyTorch Code Generation** — Exports clean, idiomatic `nn.Module` code
+- **ONNX Export** — Download supported graphs as `model.onnx`
 - **Parameter Counter** — Live parameter count as you build
-- **Training Config** — Configure optimizer, loss, scheduler, and export a complete training script
+- **Training Config** — Configure supervised training or PPO reinforcement learning and export a complete training script
 - **Pre-built Templates** — MLP, CNN, Transformer Encoder, Autoencoder, LSTM Classifier
 - **Model Execution** — Run a dummy forward pass on the backend to verify the architecture
 - **Share via URL** — Encode the graph in a URL and share with anyone

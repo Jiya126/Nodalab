@@ -46,6 +46,8 @@ export default function TopBar({ onOpenTemplates, onOpenTraining, onRunModel }: 
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [isExportingONNX, setIsExportingONNX] = useState(false);
+  const [onnxExported, setOnnxExported] = useState(false);
 
   const handleExportJSON = () => {
     const json = exportToJSON();
@@ -75,6 +77,63 @@ export default function TopBar({ onOpenTemplates, onOpenTraining, onRunModel }: 
     await navigator.clipboard.writeText(url);
     setShareCopied(true);
     setTimeout(() => setShareCopied(false), 2000);
+  };
+
+  const handleExportONNX = async () => {
+    if (nodes.length === 0) {
+      window.alert('Add blocks to the canvas before exporting ONNX.');
+      return;
+    }
+
+    setIsExportingONNX(true);
+    setOnnxExported(false);
+
+    const payload = {
+      id: useGraphStore.getState().projectId,
+      name: projectName,
+      nodes: nodes.map(n => ({
+        id: n.id,
+        type: n.data.blockType,
+        position: n.position,
+        data: n.data,
+      })),
+      edges: edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        sourceHandle: e.sourceHandle ?? null,
+        target: e.target,
+        targetHandle: e.targetHandle ?? null,
+      })),
+    };
+
+    try {
+      const response = await fetch('/api/export/onnx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || contentType.includes('application/json')) {
+        const data = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(data?.error || `ONNX export failed with status ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectName.replace(/\s+/g, '_')}.onnx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setOnnxExported(true);
+      setTimeout(() => setOnnxExported(false), 2000);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'ONNX export failed.');
+    } finally {
+      setIsExportingONNX(false);
+    }
   };
 
   return (
@@ -120,6 +179,12 @@ export default function TopBar({ onOpenTemplates, onOpenTraining, onRunModel }: 
       <ToolButton icon={<Settings size={14} />} label="Training Config" onClick={onOpenTraining} />
       <ToolButton icon={<Play size={14} />} label="Run Model" onClick={onRunModel} />
       <ToolButton
+        icon={onnxExported ? <Check size={14} className="text-green-500" /> : <Download size={14} />}
+        label={onnxExported ? 'ONNX downloaded!' : isExportingONNX ? 'Exporting ONNX...' : 'Download ONNX'}
+        onClick={handleExportONNX}
+        disabled={isExportingONNX}
+      />
+      <ToolButton
         icon={shareCopied ? <Check size={14} className="text-green-500" /> : <Share2 size={14} />}
         label={shareCopied ? 'Link copied!' : 'Share via URL'}
         onClick={handleShare}
@@ -143,12 +208,18 @@ export default function TopBar({ onOpenTemplates, onOpenTraining, onRunModel }: 
   );
 }
 
-function ToolButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function ToolButton({ icon, label, onClick, disabled = false }: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       title={label}
-      className="p-1.5 rounded hover:bg-white/10 transition-colors"
+      className="p-1.5 rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       style={{ color: 'var(--text-muted)' }}
     >
       {icon}

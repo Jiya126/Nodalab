@@ -70,17 +70,20 @@ async def export_onnx(graph: GraphPayload):
 
         model = ExportModel()
         model.eval()
-        dummy = torch.randn(*shape)
+        first_layer = next(iter(layers.values()), None)
+        if isinstance(first_layer, nn.Embedding):
+            dummy = torch.randint(0, first_layer.num_embeddings, shape, dtype=torch.long)
+        else:
+            dummy = torch.randn(*shape)
 
         with tempfile.NamedTemporaryFile(suffix=".onnx", delete=False) as f:
             torch.onnx.export(
                 model,
                 dummy,
                 f.name,
-                opset_version=14,
+                opset_version=18,
                 input_names=["input"],
                 output_names=["output"],
-                dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
             )
             f.seek(0)
             buf = io.BytesIO(open(f.name, "rb").read())

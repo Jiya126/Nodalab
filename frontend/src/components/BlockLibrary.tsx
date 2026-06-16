@@ -1,13 +1,16 @@
 import { useState, type DragEvent } from 'react';
-import { Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { CATEGORIES, getBlocksByCategory } from '../blocks/registry';
 import type { BlockDefinition } from '../blocks/types';
+import { useCustomBlockStore, type SavedCustomBlock } from '../store/customBlockStore';
 
 export default function BlockLibrary() {
   const [search, setSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(CATEGORIES.map(c => c.key))
+    new Set([...CATEGORIES.map(c => c.key), 'saved-custom'])
   );
+  const savedBlocks = useCustomBlockStore(s => s.savedBlocks);
+  const deleteCustomBlock = useCustomBlockStore(s => s.deleteCustomBlock);
 
   const toggleCategory = (key: string) => {
     setExpandedCategories(prev => {
@@ -23,6 +26,11 @@ export default function BlockLibrary() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const onCustomDragStart = (e: DragEvent, block: SavedCustomBlock) => {
+    e.dataTransfer.setData('application/nodalab-custom-block', block.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   const filteredCategories = CATEGORIES.map(cat => ({
     ...cat,
     blocks: getBlocksByCategory(cat.key).filter(b =>
@@ -30,6 +38,12 @@ export default function BlockLibrary() {
       b.description.toLowerCase().includes(search.toLowerCase())
     ),
   })).filter(cat => cat.blocks.length > 0);
+
+  const filteredSavedBlocks = savedBlocks.filter(block =>
+    block.name.toLowerCase().includes(search.toLowerCase()) ||
+    block.description.toLowerCase().includes(search.toLowerCase()) ||
+    String(block.params.code || '').toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="w-56 h-full flex flex-col" style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-color)' }}>
@@ -93,6 +107,59 @@ export default function BlockLibrary() {
             )}
           </div>
         ))}
+
+        {filteredSavedBlocks.length > 0 && (
+          <div className="mb-2">
+            <button
+              onClick={() => toggleCategory('saved-custom')}
+              className="flex items-center w-full text-xs font-semibold py-1 px-1 rounded hover:bg-white/5"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              {expandedCategories.has('saved-custom')
+                ? <ChevronDown size={12} className="mr-1" />
+                : <ChevronRight size={12} className="mr-1" />
+              }
+              Saved Custom
+              <span className="ml-auto text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                {filteredSavedBlocks.length}
+              </span>
+            </button>
+
+            {expandedCategories.has('saved-custom') && (
+              <div className="ml-1 mt-1 space-y-0.5">
+                {filteredSavedBlocks.map(block => (
+                  <div
+                    key={block.id}
+                    draggable
+                    onDragStart={e => onCustomDragStart(e, block)}
+                    className="group px-2 py-1.5 rounded text-xs cursor-grab active:cursor-grabbing hover:bg-white/5 transition-colors"
+                    style={{ color: 'var(--text-primary)' }}
+                    title={block.description}
+                  >
+                    <div className="flex items-center gap-1">
+                      <div className="font-medium truncate">{block.name}</div>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          deleteCustomBlock(block.id);
+                        }}
+                        onDragStart={e => e.preventDefault()}
+                        className="ml-auto p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10"
+                        style={{ color: 'var(--text-muted)' }}
+                        title="Delete saved custom block"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                    <div className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>
+                      {block.description}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

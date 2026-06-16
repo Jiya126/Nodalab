@@ -63,6 +63,7 @@ class ValidationResult(BaseModel):
     valid: bool
     errors: list[str] = []
     output_shapes: list[list[int | None]] | None = None
+    generated_wrapper: str | None = None
 
 
 class ExecutionResult(BaseModel):

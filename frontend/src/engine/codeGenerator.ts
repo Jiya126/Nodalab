@@ -12,6 +12,12 @@ function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? key);
 }
 
+function indentPythonBody(code: string, spaces: number): string {
+  const prefix = ' '.repeat(spaces);
+  const body = code.trim() || 'return x';
+  return body.split('\n').map(line => prefix + line).join('\n');
+}
+
 export function generateCode(nodes: BlockNode[], edges: Edge[]): string {
   if (nodes.length === 0) return '# Add blocks to the canvas to generate code';
 
@@ -23,6 +29,7 @@ export function generateCode(nodes: BlockNode[], edges: Edge[]): string {
   imports.add('import torch.nn as nn');
 
   const initLines: string[] = [];
+  const methodLines: string[] = [];
   const forwardLines: string[] = [];
 
   const varNames = new Map<string, string>();
@@ -63,7 +70,7 @@ export function generateCode(nodes: BlockNode[], edges: Edge[]): string {
       paramVars[key] = pythonBool(val);
     }
 
-    if (def.codeTemplate.init) {
+    if (node.data.blockType !== 'Custom' && def.codeTemplate.init) {
       initLines.push(`        ${interpolate(def.codeTemplate.init, paramVars)}`);
     }
 
@@ -91,6 +98,14 @@ export function generateCode(nodes: BlockNode[], edges: Edge[]): string {
       ...inputVarMap,
       out: outVar,
     };
+
+    if (node.data.blockType === 'Custom') {
+      imports.add('import math');
+      imports.add('import torch.nn.functional as F');
+      methodLines.push(`    def ${label}_forward(self, x):\n${indentPythonBody(String(node.data.params.code || 'return x'), 8)}`);
+      forwardLines.push(`        ${outVar} = self.${label}_forward(${forwardVars.in || 'x'})`);
+      continue;
+    }
 
     if (def.codeTemplate.forward) {
       forwardLines.push(`        ${interpolate(def.codeTemplate.forward, forwardVars)}`);
@@ -124,6 +139,7 @@ class NeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__()
 ${initLines.length > 0 ? initLines.join('\n') : '        pass'}
+${methodLines.length > 0 ? '\n\n' + methodLines.join('\n\n') : ''}
 
     def forward(self, ${inputArgs}):
 ${forwardLines.length > 0 ? forwardLines.join('\n') : '        pass'}

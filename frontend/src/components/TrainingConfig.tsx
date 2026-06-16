@@ -4,6 +4,7 @@ import { generateTrainingCode } from '../engine/trainingCodeGen';
 import { Copy, Check, Download, X, Settings } from 'lucide-react';
 
 interface TrainingParams {
+  algorithm: string;
   optimizer: string;
   learningRate: number;
   weightDecay: number;
@@ -15,9 +16,18 @@ interface TrainingParams {
   schedulerGamma: number;
   gradClip: number;
   mixedPrecision: boolean;
+  envId: string;
+  rolloutSteps: number;
+  ppoUpdateEpochs: number;
+  gamma: number;
+  gaeLambda: number;
+  clipEpsilon: number;
+  entropyCoef: number;
+  valueCoef: number;
 }
 
 const DEFAULT_PARAMS: TrainingParams = {
+  algorithm: 'Supervised',
   optimizer: 'Adam',
   learningRate: 0.001,
   weightDecay: 0.0,
@@ -29,6 +39,14 @@ const DEFAULT_PARAMS: TrainingParams = {
   schedulerGamma: 0.1,
   gradClip: 0.0,
   mixedPrecision: false,
+  envId: 'CartPole-v1',
+  rolloutSteps: 128,
+  ppoUpdateEpochs: 4,
+  gamma: 0.99,
+  gaeLambda: 0.95,
+  clipEpsilon: 0.2,
+  entropyCoef: 0.01,
+  valueCoef: 0.5,
 };
 
 interface Props {
@@ -90,6 +108,14 @@ export default function TrainingConfig({ onClose }: Props) {
 
         <div className="flex flex-1 overflow-hidden">
           <div className="w-72 p-4 overflow-y-auto border-r space-y-3" style={{ borderColor: 'var(--border-color)' }}>
+            <Section title="Algorithm">
+              <SelectField
+                value={params.algorithm}
+                onChange={v => update('algorithm', v)}
+                options={['Supervised', 'PPO']}
+              />
+            </Section>
+
             <Section title="Optimizer">
               <SelectField
                 value={params.optimizer}
@@ -101,33 +127,57 @@ export default function TrainingConfig({ onClose }: Props) {
             </Section>
 
             <Section title="Training">
-              <NumberField label="Epochs" value={params.epochs} onChange={v => update('epochs', v)} step={1} />
-              <NumberField label="Batch Size" value={params.batchSize} onChange={v => update('batchSize', v)} step={1} />
+              <NumberField label={params.algorithm === 'PPO' ? 'PPO Updates' : 'Epochs'} value={params.epochs} onChange={v => update('epochs', v)} step={1} />
+              {params.algorithm === 'Supervised' && (
+                <NumberField label="Batch Size" value={params.batchSize} onChange={v => update('batchSize', v)} step={1} />
+              )}
               <NumberField label="Grad Clip (0=off)" value={params.gradClip} onChange={v => update('gradClip', v)} step={0.1} />
-              <BoolField label="Mixed Precision" value={params.mixedPrecision} onChange={v => update('mixedPrecision', v)} />
-            </Section>
-
-            <Section title="Loss Function">
-              <SelectField
-                value={params.loss}
-                onChange={v => update('loss', v)}
-                options={['CrossEntropyLoss', 'MSELoss', 'BCEWithLogitsLoss', 'L1Loss', 'NLLLoss']}
-              />
-            </Section>
-
-            <Section title="LR Scheduler">
-              <SelectField
-                value={params.scheduler}
-                onChange={v => update('scheduler', v)}
-                options={['none', 'StepLR', 'CosineAnnealingLR', 'ReduceLROnPlateau']}
-              />
-              {params.scheduler === 'StepLR' && (
-                <>
-                  <NumberField label="Step Size" value={params.schedulerStepSize} onChange={v => update('schedulerStepSize', v)} step={1} />
-                  <NumberField label="Gamma" value={params.schedulerGamma} onChange={v => update('schedulerGamma', v)} step={0.01} />
-                </>
+              {params.algorithm === 'Supervised' && (
+                <BoolField label="Mixed Precision" value={params.mixedPrecision} onChange={v => update('mixedPrecision', v)} />
               )}
             </Section>
+
+            {params.algorithm === 'Supervised' ? (
+              <>
+                <Section title="Loss Function">
+                  <SelectField
+                    value={params.loss}
+                    onChange={v => update('loss', v)}
+                    options={['CrossEntropyLoss', 'MSELoss', 'BCEWithLogitsLoss', 'L1Loss', 'NLLLoss']}
+                  />
+                </Section>
+
+                <Section title="LR Scheduler">
+                  <SelectField
+                    value={params.scheduler}
+                    onChange={v => update('scheduler', v)}
+                    options={['none', 'StepLR', 'CosineAnnealingLR', 'ReduceLROnPlateau']}
+                  />
+                  {params.scheduler === 'StepLR' && (
+                    <>
+                      <NumberField label="Step Size" value={params.schedulerStepSize} onChange={v => update('schedulerStepSize', v)} step={1} />
+                      <NumberField label="Gamma" value={params.schedulerGamma} onChange={v => update('schedulerGamma', v)} step={0.01} />
+                    </>
+                  )}
+                </Section>
+              </>
+            ) : (
+              <>
+                <Section title="Environment">
+                  <StringField label="Gymnasium Env ID" value={params.envId} onChange={v => update('envId', v)} />
+                </Section>
+
+                <Section title="PPO Policy">
+                  <NumberField label="Rollout Steps" value={params.rolloutSteps} onChange={v => update('rolloutSteps', v)} step={1} />
+                  <NumberField label="Update Epochs" value={params.ppoUpdateEpochs} onChange={v => update('ppoUpdateEpochs', v)} step={1} />
+                  <NumberField label="Gamma" value={params.gamma} onChange={v => update('gamma', v)} step={0.01} />
+                  <NumberField label="GAE Lambda" value={params.gaeLambda} onChange={v => update('gaeLambda', v)} step={0.01} />
+                  <NumberField label="Clip Epsilon" value={params.clipEpsilon} onChange={v => update('clipEpsilon', v)} step={0.01} />
+                  <NumberField label="Entropy Coef" value={params.entropyCoef} onChange={v => update('entropyCoef', v)} step={0.001} />
+                  <NumberField label="Value Coef" value={params.valueCoef} onChange={v => update('valueCoef', v)} step={0.1} />
+                </Section>
+              </>
+            )}
           </div>
 
           <pre className="flex-1 overflow-auto p-4 text-xs font-mono leading-relaxed" style={{ color: 'var(--text-primary)', background: 'var(--bg-primary)' }}>
@@ -135,6 +185,21 @@ export default function TrainingConfig({ onClose }: Props) {
           </pre>
         </div>
       </div>
+    </div>
+  );
+}
+
+function StringField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="text-[10px] block mb-0.5" style={{ color: 'var(--text-muted)' }}>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-2 py-1 rounded text-xs outline-none"
+        style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+      />
     </div>
   );
 }

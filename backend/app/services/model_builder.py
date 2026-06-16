@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from app.schemas.graph import GraphPayload, ExecutionResult
+from app.services.block_validator import compile_custom_forward
 
 
 ACTIVATIONS = {
@@ -108,7 +109,14 @@ def execute_model(graph: GraphPayload) -> ExecutionResult:
 
             if bt == "Output":
                 if incoming:
-                    tensors[node_id] = tensors[incoming[0].source]
+                    source_id = incoming[0].source
+                    if source_id not in tensors:
+                        source_node = node_map.get(source_id)
+                        source_label = source_node.data.label if source_node else source_id
+                        raise ValueError(
+                            f"Output is connected to '{source_label}', but that node did not produce a tensor"
+                        )
+                    tensors[node_id] = tensors[source_id]
                 continue
 
             input_tensors = [tensors[e.source] for e in incoming if e.source in tensors]
@@ -144,11 +152,24 @@ def execute_model(graph: GraphPayload) -> ExecutionResult:
                 tensors[node_id] = x.view(*new_shape)
                 continue
 
+            if bt == "Custom":
+                forward = compile_custom_forward(str(params.get("code", "return x")), ["x"])
+                with torch.no_grad():
+                    out = forward(x)
+                if not isinstance(out, torch.Tensor):
+                    raise ValueError(f"Custom block '{node.data.label}' must return a torch.Tensor")
+                tensors[node_id] = out
+                continue
+
             layer = _build_layer(bt, params)
             if layer is not None:
                 layers[node_id] = layer
                 with torch.no_grad():
-                    if bt == "LSTM":
+                    if bt == "Embedding":
+                        vocab_size = int(params.get("num_embeddings", 10000))
+                        x = torch.randint(0, vocab_size, x.shape, dtype=torch.long)
+                        out = layer(x)
+                    elif bt == "LSTM":
                         out, _ = layer(x)
                     elif bt == "MultiHeadAttention":
                         out, _ = layer(x, x, x)

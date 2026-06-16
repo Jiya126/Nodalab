@@ -171,8 +171,28 @@ def propagate_shapes(graph: GraphPayload) -> list[ShapeResult]:
                 results.append(ShapeResult(node_id=node_id, output_shapes=[shape]))
                 continue
 
+            if block_type == "Custom":
+                if params.get("output_shape_rule", "same") == "custom":
+                    shape_str = str(params.get("custom_output_shape", "null,256"))
+                    shape = []
+                    for d in shape_str.split(","):
+                        d = d.strip()
+                        if d in ("null", "N", "B"):
+                            shape.append(None)
+                        else:
+                            shape.append(int(d))
+                else:
+                    shape = input_shape
+                output_shapes[node_id] = [shape]
+                results.append(ShapeResult(node_id=node_id, output_shapes=[shape]))
+                continue
+
             if layer is not None:
-                dummy = torch.randn(*dummy_shape)
+                if block_type == "Embedding":
+                    vocab_size = int(params.get("num_embeddings", 10000))
+                    dummy = torch.randint(0, vocab_size, dummy_shape, dtype=torch.long)
+                else:
+                    dummy = torch.randn(*dummy_shape)
                 with torch.no_grad():
                     if block_type == "LSTM":
                         out, _ = layer(dummy)

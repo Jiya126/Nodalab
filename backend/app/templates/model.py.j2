@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 
 class NeuralNetwork(nn.Module):
@@ -28,6 +29,13 @@ class NeuralNetwork(nn.Module):
 {% endif %}
 {% endfor %}
 
+{% for layer in layers %}
+{% if layer.type == 'Custom' %}
+    def {{ layer.label }}_forward(self, x):
+{{ layer.params.get('code', 'return x') | trim | indent(8, true) }}
+
+{% endif %}
+{% endfor %}
     def forward(self, {{ inputs | join(', ') }}):
 {% for fwd in forwards %}
 {% if fwd.type in ('ReLU',) %}
@@ -48,6 +56,8 @@ class NeuralNetwork(nn.Module):
         {{ fwd.output_var }}, _ = self.{{ fwd.label }}({{ fwd.input_var }})
 {% elif fwd.type == 'MultiHeadAttention' %}
         {{ fwd.output_var }}, _ = self.{{ fwd.label }}({{ fwd.input_var }}, {{ fwd.input_var }}, {{ fwd.input_var }})
+{% elif fwd.type == 'Custom' %}
+        {{ fwd.output_var }} = self.{{ fwd.label }}_forward({{ fwd.input_var }})
 {% else %}
         {{ fwd.output_var }} = self.{{ fwd.label }}({{ fwd.input_var }})
 {% endif %}

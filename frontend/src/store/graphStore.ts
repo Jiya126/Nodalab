@@ -13,6 +13,7 @@ import type { BlockNodeData, SerializedGraph } from '../blocks/types';
 import { getBlockDefinition } from '../blocks/registry';
 import { propagateShapes } from '../engine/shapeEngine';
 import { generateCode } from '../engine/codeGenerator';
+import type { SavedCustomBlock } from './customBlockStore';
 
 export type BlockNode = Node<BlockNodeData>;
 export type BlockEdge = Edge;
@@ -37,6 +38,7 @@ interface GraphState {
   onEdgesChange: (changes: EdgeChange<BlockEdge>[]) => void;
   onConnect: (connection: Connection) => void;
   addNode: (blockType: string, position: { x: number; y: number }) => void;
+  addCustomBlockPreset: (preset: SavedCustomBlock, position: { x: number; y: number }) => void;
   updateNodeParams: (nodeId: string, params: Record<string, unknown>) => void;
   updateNodeLabel: (nodeId: string, label: string) => void;
   deleteSelected: () => void;
@@ -64,6 +66,28 @@ function makeNodeLabel(blockType: string, existingNodes: BlockNode[]): string {
     });
   const next = existing.length === 0 ? 1 : Math.max(...existing) + 1;
   return `${prefix}_${next}`;
+}
+
+function makeSafeLabelPrefix(name: string): string {
+  const prefix = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'custom';
+  return /^\d/.test(prefix) ? `block_${prefix}` : prefix;
+}
+
+function makeNodeLabelFromPrefix(prefix: string, existingNodes: BlockNode[]): string {
+  const safePrefix = makeSafeLabelPrefix(prefix);
+  const existing = existingNodes
+    .map(n => n.data.label)
+    .filter(label => label === safePrefix || label.startsWith(`${safePrefix}_`))
+    .map(label => {
+      const match = label.match(/_(\d+)$/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+  const next = existing.length === 0 ? 1 : Math.max(...existing) + 1;
+  return `${safePrefix}_${next}`;
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
@@ -133,6 +157,33 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         blockType,
         label,
         params: defaultParams,
+      },
+    };
+    set((state) => ({ nodes: [...state.nodes, newNode] }));
+    get().recalculate();
+  },
+
+  addCustomBlockPreset: (preset, position) => {
+    const def = getBlockDefinition('Custom');
+    if (!def) return;
+
+    get().pushHistory();
+    const defaultParams: Record<string, unknown> = {};
+    for (const p of def.params) {
+      defaultParams[p.name] = p.default;
+    }
+
+    const newNode: BlockNode = {
+      id: `node-${uuidv4()}`,
+      type: 'blockNode',
+      position,
+      data: {
+        blockType: 'Custom',
+        label: makeNodeLabelFromPrefix(preset.name, get().nodes),
+        params: {
+          ...defaultParams,
+          ...JSON.parse(JSON.stringify(preset.params)),
+        },
       },
     };
     set((state) => ({ nodes: [...state.nodes, newNode] }));
