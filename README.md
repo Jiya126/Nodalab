@@ -12,6 +12,7 @@ A browser-based block programming environment for designing neural network archi
 - **ONNX Export** — Download supported graphs as `model.onnx`
 - **Parameter Counter** — Live parameter count as you build
 - **Training Config** — Configure supervised training or PPO reinforcement learning and export a complete training script
+- **Live Training Visualization** — Start synthetic supervised or Gymnasium PPO training and watch activation, gradient, and weight-update metrics on graph nodes
 - **Pre-built Templates** — MLP, CNN, Transformer Encoder, Autoencoder, LSTM Classifier
 - **Model Execution** — Run a dummy forward pass on the backend to verify the architecture
 - **Share via URL** — Encode the graph in a URL and share with anyone
@@ -94,4 +95,7 @@ Nodalab/
 | POST | `/api/execute/run` | Run a dummy forward pass |
 | POST | `/api/export/code` | Generate PyTorch code from graph |
 | POST | `/api/export/onnx` | Export model as ONNX file |
+| POST | `/api/train/start` | Start a live training telemetry job |
+| GET | `/api/train/status/{job_id}` | Poll training telemetry |
+| POST | `/api/train/stop/{job_id}` | Stop a running training job |
 | GET | `/api/health` | Health check |

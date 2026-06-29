@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import shapes, validate, execute, export
+from app.routers import shapes, validate, execute, export, train
 
 app = FastAPI(
     title="Nodalab API",
@@ -21,6 +21,7 @@ app.include_router(shapes.router)
 app.include_router(validate.router)
 app.include_router(execute.router)
 app.include_router(export.router)
+app.include_router(train.router)
 
 
 @app.get("/api/health")
